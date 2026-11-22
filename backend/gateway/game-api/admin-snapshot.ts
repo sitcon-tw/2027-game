@@ -30,8 +30,9 @@ export function adminSnapshot(store: Store, players: [string, GameEngine][], dem
     for (const entry of state.ledger) {
       if (entry.reason !== 'scan.checkpoint' && entry.reason !== 'scan.checkpoint.repeat') continue;
       const uid = uidPattern.exec(entry.detail)?.[1];
-      const number = uid === undefined ? undefined : checkpointByTag.get(uid);
-      if (number !== undefined) {
+      const number = Number(/打卡小石([0-9]+)/.exec(entry.detail)?.[1]) ||
+        (uid === undefined ? undefined : checkpointByTag.get(uid));
+      if (number !== undefined && number >= 1 && number <= checkpoints.length) {
         const checkpoint = checkpoints[number - 1];
         const at = parseDate(entry.at);
         if (checkpoint.last == null || isBefore(checkpoint.last, at)) checkpoint.last = at;
@@ -46,8 +47,8 @@ export function adminSnapshot(store: Store, players: [string, GameEngine][], dem
       }
     }
     for (const scan of Object.values(state.scans)) {
-      const number = checkpointByTag.get(scan.source);
-      if (number !== undefined) checkpoints[number - 1].scans++;
+      const number = scan.kind === 'checkpoint' ? scan.message?.args?.number : undefined;
+      if (typeof number === 'number' && Number.isInteger(number) && checkpoints[number - 1]) checkpoints[number - 1].scans++;
       metrics.scans++;
     }
     for (const log of core.ledger) {

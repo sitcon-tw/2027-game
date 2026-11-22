@@ -42,7 +42,7 @@ export type PlayerState = {
   bindings: Index<string>;
   ledger: { at: string; reason: string; detail: string }[];
   checkpoints: Index<string>;
-  scans: Index<{ source: string }>;
+  scans: Index<{ source: string; kind?: string; message?: { args?: Record<string, unknown> } }>;
 };
 type AuditEntry = {
   at: string;

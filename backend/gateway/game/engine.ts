@@ -337,6 +337,17 @@ export class GameEngine implements GameService {
     return this.#change(() => this.#setBadge(this.#validateBadgeUid(uid), 'badge.replace'));
   }
 
+  removeBadge() {
+    return this.#change(() => {
+      this.#log('badge.remove', `名牌 UID=${this.#s.badge}`);
+      this.#s.badge = null;
+    });
+  }
+
+  forgetLocalTagBinding(uid: string) {
+    return this.#change(() => { delete this.#s.bindings[uid]; });
+  }
+
   #validateBadgeUid(uid: string) {
     const normalized = GameEngine.normalizeUid(uid);
     if (attendeeByUid.has(normalized)) throw new GameStateError(new GameMessage('badgeTaken'));

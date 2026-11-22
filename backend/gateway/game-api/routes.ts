@@ -40,6 +40,8 @@ const auditedAdminArgs: Readonly<Record<string, readonly string[]>> = {
   station: ['stationId', 'name', 'packs', 'limit', 'remaining', 'open'],
   bindStationTag: ['stationId', 'uid'],
   bindCheckpointTag: ['checkpointNumber', 'uid'],
+  unbindBadge: ['playerId', 'uid'],
+  unbindTag: ['target', 'uid'],
 };
 const zeroAllowed = { missionCoins: true, battleWinCoins: true, battleDrawCoins: true };
 const demoBadgeUids = new Set(Array.from({ length: 18 }, (_, i) => GameEngine.playerUid(i + 1)));
@@ -303,9 +305,10 @@ export class GameApi {
     return null;
   }
 
-  #saveTagBinding(uid: string, target: string) {
+  #saveTagBinding(uid: string, target: string | null) {
     const data = this.#store.data;
-    data.bindings[uid] = target;
+    if (target === null) delete data.bindings[uid];
+    else data.bindings[uid] = target;
     this.#store.changed();
     const conflicts = new Set(data.bindingConflicts);
     for (const player of this.#players.values()) player.useGlobalBindings(data.bindings, { conflicts });
@@ -383,6 +386,25 @@ export class GameApi {
   async #adminAction(action: string, a: JsonObject): Promise<void> {
     const data = this.#store.data;
     switch (action) {
+      case 'unbindBadge': {
+        const [, player] = await this.#target(a);
+        const uid = GameEngine.normalizeUid(stringField(a, 'uid', 100));
+        if (player.badgeUid !== uid) throw new GameStateError(new GameMessage('badgeBindingChanged'));
+        await player.removeBadge();
+        break;
+      }
+      case 'unbindTag': {
+        const target = stringField(a, 'target', 48);
+        const uid = GameEngine.normalizeUid(stringField(a, 'uid', 100));
+        if (data.bindings[uid] !== target || data.bindingConflicts.includes(uid)) {
+          throw new GameStateError(new GameMessage('tagBindingChanged'));
+        }
+        for (const [id, state] of Object.entries(data.players)) {
+          if (Object.hasOwn(state.bindings, uid)) await (await this.#player(id)).forgetLocalTagBinding(uid);
+        }
+        this.#saveTagBinding(uid, null);
+        break;
+      }
       case 'replaceBadge': {
         const [id, target] = await this.#target(a);
         const expected = stringField(a, 'expectedUid', 14, true);

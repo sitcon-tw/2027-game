@@ -126,6 +126,14 @@ test('an admin binding resolves a custom station immediately for an existing pla
   assert.equal(after.result.message.code, 'stationPacks');
   assert.equal(after.state.packs, before.packs + 2);
   assert.equal((await scan('again')).result.message.code, 'stationLimit');
+  assert.equal((await api.admin('unbindTag', { uid, target: 'station-2' })).payload.error.message.code, 'tagBindingChanged');
+  const removed = api.success(await api.admin('unbindTag', { uid, target: station.stationId }));
+  assert.deepEqual(removed.stations.find(s => s.id === station.stationId).boundUids, []);
+  assert.equal((await scan('removed')).result.kind, 'unknown');
+  const unbadged = api.success(await api.admin('unbindBadge', { uid: badge, playerId: player.id }));
+  assert.equal(unbadged.players.find(p => p.id === player.id).badgeUid, null);
+  assert.equal((await api.state(player)).checkedIn, true);
+  api.success(await bind(badge));
 });
 
 test('physical and fixture checkpoint tags share one reward and appear in admin statistics', async t => {
@@ -148,6 +156,10 @@ test('physical and fixture checkpoint tags share one reward and appear in admin 
   const summary = api.success(await api.request('/api/admin/state')).checkpoints[0];
   assert.equal(summary.scans, 2);
   assert.equal(summary.collectedPlayers, 1);
+  const removed = api.success(await api.admin('unbindTag', { uid, target: 'checkpoint-1' }));
+  assert.deepEqual(removed.checkpoints[0].boundUids, []);
+  assert.equal(removed.checkpoints[0].scans, 2);
+  api.success(await api.admin('bindStationTag', { stationId: 'station-1', uid }));
 });
 
 test('a failed commit restores both players and the room before a locked round is retried', async t => {

@@ -61,6 +61,14 @@ export function actionPayload(action, form) {
 }
 
 export function confirmationFor({ action, args }, state) {
+  if (action === 'unbindBadge' || action === 'unbindTag') {
+    const target = args.playerId ?? args.target;
+    return {
+      title: '確認解除綁定？',
+      detail: `${target} · ${args.uid}。不會清除玩家進度或已領取的獎勵。`,
+      submit: '確認解除綁定',
+    };
+  }
   if (action === 'adjustInventory') {
     const player = state?.players.find(({ id }) => id === args.playerId);
     const label = inventoryNames[args.resource] ?? planetNames[args.resource];

@@ -181,7 +181,7 @@ function BadgeForm({ player }) {
   return (
     <ActionForm id="badge-form" title="玩家 NFC 名牌" action="replaceBadge" submitLabel="儲存名牌綁定">
       <input type="hidden" name="playerId" value={player.id} />
-      <p>目前 UID：{player.badgeUid ?? '—'}</p>
+      <p>目前 UID：{player.badgeUid ?? '—'}{player.badgeUid && <> <UnbindButton uid={player.badgeUid} playerId={player.id} /></>}</p>
       <input type="hidden" name="expectedUid" value={player.badgeUid ?? ''} />
       <Field id="badge-uid" label="新 NFC UID（14 個十六進位字元）">
         <input id="badge-uid" name="uid" required maxLength={26}
@@ -390,6 +390,20 @@ export function Players() {
   );
 }
 
+function UnbindButton({ uid, target, playerId }) {
+  const { submit, writable, busy } = useDashboard();
+  const action = playerId ? 'unbindBadge' : 'unbindTag';
+  return <button type="button" className="button tonal compact" disabled={!writable || Boolean(busy)}
+    aria-label={`解除綁定 ${uid}`} onClick={() => submit({
+      action, args: playerId ? { uid, playerId } : { uid, target },
+    }, '解除綁定')}>解除綁定</button>;
+}
+
+function BoundTags({ uids, target }) {
+  if (!uids?.length) return '—';
+  return uids.map(uid => <div key={uid}><code>{uid}</code> <UnbindButton uid={uid} target={target} /></div>);
+}
+
 function TagUidField({ id }) {
   return (
     <Field id={id} label="NTAG UID（14 個十六進位字元）">
@@ -415,7 +429,7 @@ export function Stations() {
       <Card title="發卡站狀態">
         <DataTable caption="發卡站庫存與領取規則" empty={state ? '尚無發卡站。' : unloaded}
           headings={['發卡站', 'ID', 'NTAG UID', '每次卡包', '每人上限', '庫存', '狀態', '操作']}
-          rows={(state?.stations ?? none).map((station) => [station.id, station.name, station.id, station.boundUids?.join('、') || '—', number(station.packs), number(station.limit), number(station.remaining),
+          rows={(state?.stations ?? none).map((station) => [station.id, station.name, station.id, <BoundTags uids={station.boundUids} target={station.id} />, number(station.packs), number(station.limit), number(station.remaining),
             <span className={`chip ${station.open ? 'positive' : 'secondary'}`}>{station.open ? '開放' : '關閉'}</span>,
             <button className="button tonal compact" type="button" disabled={!writable} aria-label={`編輯發卡站 ${station.id}`} onClick={() => edit(station)}>編輯</button>])} />
       </Card>
@@ -461,7 +475,7 @@ export function Checkpoints() {
       <Card title="掃描狀態">
         <DataTable caption="打卡小石實際掃描狀態" empty={state ? '尚無打卡資料。' : unloaded}
           headings={['編號', '區域', 'NTAG UID', '掃描次數', '收集數', '最近掃描']}
-          rows={(state?.checkpoints ?? none).map((checkpoint) => [checkpoint.number, checkpoint.number, checkpoint.area, checkpoint.boundUids?.join('、') || '—', number(checkpoint.scans),
+          rows={(state?.checkpoints ?? none).map((checkpoint) => [checkpoint.number, checkpoint.number, checkpoint.area, <BoundTags uids={checkpoint.boundUids} target={`checkpoint-${checkpoint.number}`} />, number(checkpoint.scans),
             typeof checkpoint.collected === 'boolean' ? (checkpoint.collected ? '已收集' : '未收集') : number(checkpoint.collected), time(checkpoint.lastScan)])} />
       </Card>
       <ActionForm id="checkpoint-tag-form" title="綁定打卡小石 NTAG" action="bindCheckpointTag" submitLabel="綁定 NTAG">
