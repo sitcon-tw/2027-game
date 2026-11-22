@@ -4,11 +4,12 @@ import { once } from 'node:events';
 import test from 'node:test';
 import { createGameWorker } from './worker.ts';
 
-async function fixture(t) {
+async function fixture(t, { remoteStationFixtures = false } = {}) {
   let document = JSON.stringify({ version: 1, players: {}, audit: [], phase: 'before', parameters: {}, stations: {} });
   let failWrite = false;
   let now = new Date('2026-11-22T09:00:00.000Z');
   const worker = createGameWorker({
+    remoteStationFixtures,
     clock: () => now,
     persistence: {
       load: async () => document,
@@ -102,7 +103,7 @@ test('device transfer is a single claim with a same-device receipt after expiry'
 });
 
 test('an admin binding resolves a custom station immediately for an existing player', async t => {
-  const api = await fixture(t);
+  const api = await fixture(t, { remoteStationFixtures: true });
   api.success(await api.admin('phase', { phase: 'active' }));
   const player = await api.enroll();
   const badge = '04A70000000001';
@@ -110,6 +111,7 @@ test('an admin binding resolves a custom station immediately for an existing pla
   api.success(await api.action(player, 'saveProfile', { tags: ['AI', 'Vim派', '夜貓族'], contact: '' }));
   const station = { stationId: 'station-custom', name: 'Custom', packs: 2, limit: 1, remaining: 10 };
   api.success(await api.admin('station', { ...station, open: false }));
+  assert.equal(Object.hasOwn((await api.state(player)).stationFixtureUids, station.stationId), false);
   const bind = uid => api.admin('bindStationTag', { stationId: station.stationId, uid });
   for (const uid of [badge, '04E00000000001']) {
     assert.equal((await bind(uid)).payload.error.message.code, 'uidReserved');
@@ -117,6 +119,7 @@ test('an admin binding resolves a custom station immediately for an existing pla
   const uid = '04A70000000002';
   const admin = api.success(await bind('04:a7:00:00:00:00:02'));
   assert.deepEqual(admin.stations.find(s => s.id === station.stationId).boundUids, [uid]);
+  assert.equal((await api.state(player)).stationFixtureUids[station.stationId], uid);
   assert.equal((await bind(uid)).payload.error.message.code, 'uidReserved');
   const scan = async scanId => api.success(await api.action(player, 'scan', { uid, scanId }));
   assert.equal((await scan('closed')).result.message.code, 'stationClosed');
@@ -129,6 +132,7 @@ test('an admin binding resolves a custom station immediately for an existing pla
   assert.equal((await api.admin('unbindTag', { uid, target: 'station-2' })).payload.error.message.code, 'tagBindingChanged');
   const removed = api.success(await api.admin('unbindTag', { uid, target: station.stationId }));
   assert.deepEqual(removed.stations.find(s => s.id === station.stationId).boundUids, []);
+  assert.equal(Object.hasOwn((await api.state(player)).stationFixtureUids, station.stationId), false);
   assert.equal((await scan('removed')).result.kind, 'unknown');
   const unbadged = api.success(await api.admin('unbindBadge', { uid: badge, playerId: player.id }));
   assert.equal(unbadged.players.find(p => p.id === player.id).badgeUid, null);
@@ -144,6 +148,7 @@ test('physical and fixture checkpoint tags share one reward and appear in admin 
   api.success(await api.action(player, 'saveProfile', { tags: ['AI', 'Vim派', '夜貓族'], contact: '' }));
   const uid = '04A70000000003';
   const admin = api.success(await api.admin('bindCheckpointTag', { checkpointNumber: 1, uid }));
+  assert.equal(Object.hasOwn(await api.state(player), 'stationFixtureUids'), false);
   assert.deepEqual(admin.checkpoints[0].boundUids, [uid]);
   const conflict = await api.admin('bindStationTag', { stationId: 'station-1', uid });
   assert.equal(conflict.payload.error.message.code, 'uidReserved');

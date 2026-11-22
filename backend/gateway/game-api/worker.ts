@@ -86,11 +86,12 @@ function json(response: ServerResponse, status: number, value: unknown): void {
   response.end(body);
 }
 
-export function createGameWorker({ persistence, clock = () => new Date() }: {
+export function createGameWorker({ persistence, clock = () => new Date(), remoteStationFixtures = false }: {
   persistence: Persistence;
   clock?: () => Date;
+  remoteStationFixtures?: boolean;
 }): GameWorker {
-  const api = new GameApi(persistence, clock);
+  const api = new GameApi(persistence, clock, remoteStationFixtures);
   const ready = api.initialize();
   // Await startup in every handler; a failing load still needs an observer
   // when no request has arrived yet.

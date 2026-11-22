@@ -62,10 +62,12 @@ export class GameApi {
   #instance = `${Date.now() * 1000}-${randomInt(2 ** 32)}`;
   #tail = Promise.resolve();
   #sequence = 0;
+  #remoteStationFixtures: boolean;
 
-  constructor(persistence: Persistence, clock: () => Date) {
+  constructor(persistence: Persistence, clock: () => Date, remoteStationFixtures: boolean) {
     this.#store = new Store(persistence);
     this.#clock = clock;
+    this.#remoteStationFixtures = remoteStationFixtures;
     this.#sessions = new DeviceSessions(this.#store, clock);
     this.#multiplayer = new Multiplayer(this.#store, clock, id => this.#player(id), this.#sessions);
   }
@@ -137,11 +139,26 @@ export class GameApi {
   }
 
   async #playerState(id: string, core: GameEngine, actionResult?: { result: unknown }) {
-    const state: GameWire & { multiplayer?: MultiplayerWire } = gameToWire(core);
+    const state: GameWire & { multiplayer?: MultiplayerWire; stationFixtureUids?: Record<string, string> } = gameToWire(core);
     if (this.#sessions.isEnrolled(id)) {
       const { liveBattle, multiplayer } = await this.#multiplayer.snapshot(id, core);
       if (liveBattle != null) state.battle = liveBattle;
       state.multiplayer = multiplayer;
+      if (this.#remoteStationFixtures) {
+        const { bindings, bindingConflicts } = this.#store.data;
+        const conflicts = new Set(bindingConflicts);
+        const stationIds = new Set(core.stations.map(station => station.id));
+        const uids: Record<string, string> = Object.create(null);
+        for (const [uid, station] of Object.entries(bindings)) {
+          if (stationIds.has(station) && !conflicts.has(uid)) uids[station] ??= uid;
+        }
+        for (let i = 1; i <= 4; i++) {
+          const id = `station-${i}`;
+          const uid = GameEngine.stationUid(i);
+          if (stationIds.has(id) && !conflicts.has(uid)) uids[id] ??= uid;
+        }
+        state.stationFixtureUids = uids;
+      }
     }
     return {
       state,

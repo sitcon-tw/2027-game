@@ -28,6 +28,8 @@ npm run dev
 
 在玩家名牌、發卡站或打卡小石的 UID 旁按「解除綁定」。解除後可以將 UID 加到其他目標，不會清除玩家進度或已領取的獎勵。
 
+遠端測試環境可在後端設定 `REMOTE_STATION_FIXTURES=true`，讓 App 的模擬清單顯示所有發卡站，並以已綁定的 UID 走正常掃描流程。此設定會將發卡站的掃描 UID 傳給已登入玩家，只能用在測試環境；預設關閉。
+
 ## 常用指令
 
 - `backend/gateway/`：`npm run typecheck`、`npm test`

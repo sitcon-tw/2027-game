@@ -68,7 +68,7 @@ async function run(env: NodeJS.ProcessEnv) {
   try {
     await prisma.$connect();
     stopping.signal.throwIfAborted();
-    worker = createGameWorker({ persistence });
+    worker = createGameWorker({ persistence, remoteStationFixtures: env.REMOTE_STATION_FIXTURES === 'true' });
     const listening = once(worker, 'listening');
     worker.listen(workerPort, loopback);
     await listening;
