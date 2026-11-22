@@ -1,0 +1,33 @@
+# SITCON 大地遊戲
+
+大地遊戲後端 API 與管理後台。Flutter 玩家 App 位於獨立的 `2027-game-app` 專案。
+
+## 專案結構
+
+- `frontend/`：Next.js 管理後台
+- `backend/gateway/`：TypeScript + Fastify API，透過 Prisma 存取 PostgreSQL
+
+## 快速開始
+
+需要 Node.js 26、npm，以及 macOS 或 Linux（arm64／x64）。在專案根目錄執行：
+
+```bash
+npm run dev
+```
+
+首次啟動會安裝依賴、建立本機 PostgreSQL 並初始化資料，不需要 Docker、`.env` 或手動執行 SQL。
+
+- 管理後台：[http://127.0.0.1:4173](http://127.0.0.1:4173)
+- API：[http://127.0.0.1:8787/api/health](http://127.0.0.1:8787/api/health)
+
+按 `Ctrl+C` 停止。資料保存在 `.sitcon-dev/`，下次啟動會沿用。所有服務只接受本機連線。
+
+## 常用指令
+
+- `backend/gateway/`：`npm run typecheck`、`npm test`
+- `frontend/`：`npm run build`、`npm test`
+
+## 補充
+
+- Dokploy 使用兩個獨立的 Dockerfile Applications：後端用 `backend/Dockerfile`（context：`.`），前端用 `frontend/Dockerfile`（context：`frontend`）。
+- 管理後台沒有管理員登入，不要對外公開。

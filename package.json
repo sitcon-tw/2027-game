@@ -1,0 +1,14 @@
+{
+  "name": "sitcon-game",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=26 <27" },
+  "scripts": { "dev": "node scripts/dev.mjs" },
+  "devDependencies": { "pg": "8.23.1" },
+  "optionalDependencies": {
+    "@embedded-postgres/darwin-arm64": "18.7.0-beta.19",
+    "@embedded-postgres/darwin-x64": "18.7.0-beta.19",
+    "@embedded-postgres/linux-arm64": "18.7.0-beta.19",
+    "@embedded-postgres/linux-x64": "18.7.0-beta.19"
+  }
+}

@@ -1,0 +1,18 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../build/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SitconState {
+  singleton Boolean @id @default(true)
+  document  Json    @db.Json
+  revision  BigInt  @default(0)
+
+  @@map("sitcon_state")
+}

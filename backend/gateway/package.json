@@ -1,0 +1,25 @@
+{
+  "name": "sitcon-game-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "start": "node main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "fastify": "5.12.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "prisma": "7.10.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!next.config.mjs
+!app/
+!app/**
+!server.mjs
+!healthcheck.mjs
+!public/
+!public/**

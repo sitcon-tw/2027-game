@@ -1,0 +1,14 @@
+# Allow only standalone API build inputs, never local test data.
+**
+!backend/
+!backend/Dockerfile
+!backend/gateway/
+!backend/gateway/*.ts
+!backend/gateway/tsconfig.json
+!backend/gateway/game/
+!backend/gateway/game/**/*.ts
+!backend/gateway/game-api/
+!backend/gateway/game-api/**/*.ts
+!backend/gateway/package*.json
+!backend/gateway/prisma/
+!backend/gateway/prisma/schema.prisma
