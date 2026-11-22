@@ -30,4 +30,4 @@ npm run dev
 ## 補充
 
 - Dokploy 使用兩個獨立的 Dockerfile Applications：後端用 `backend/Dockerfile`（context：`.`），前端用 `frontend/Dockerfile`（context：`frontend`）。
-- 管理後台沒有管理員登入，不要對外公開。
+- 部署時在後端與管理後台設定相同的 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD_FILE`。用唯讀掛載提供至少 16 字元的密碼，不要把密碼提交到 Git。管理後台與 API 之間使用 HTTPS；本機 loopback 開發不需設定。

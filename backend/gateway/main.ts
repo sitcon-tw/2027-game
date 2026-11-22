@@ -1,4 +1,5 @@
 import { Agent } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { finished } from 'node:stream/promises';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -39,6 +40,14 @@ async function closeListener(app: FastifyInstance) {
 
 async function run(env: NodeJS.ProcessEnv) {
   const config = publicConfig(env);
+  const { ADMIN_USERNAME: username, ADMIN_PASSWORD_FILE: passwordFile } = env;
+  let adminCredential: string | undefined;
+  if (username !== undefined || passwordFile !== undefined || config.dashboardOrigin) {
+    if (!username || /[:\r\n]/.test(username) || !passwordFile) throw new ConfigError('Admin credentials must be configured');
+    const password = (await readFile(passwordFile, 'utf8')).trimEnd();
+    if (password.length < 16) throw new ConfigError('Admin password must contain at least 16 characters');
+    adminCredential = Buffer.from(`${username}:${password}`).toString('base64');
+  }
   const prisma = new PrismaClient({ adapter: new PrismaPg(await postgresConfig(env)) });
   const persistence = createGamePersistence(createStateStore(prisma));
   const agent = new Agent({ keepAlive: true });
@@ -46,7 +55,7 @@ async function run(env: NodeJS.ProcessEnv) {
   const stopped = Promise.withResolvers<number>();
   let ready = false;
   let worker: GameWorker | undefined;
-  const api = createPublicServer(config, { workerPort, agent, available: () => ready });
+  const api = createPublicServer(config, { workerPort, agent, adminCredential, available: () => ready });
   function stop(code: number) {
     if (stopping.signal.aborted) return;
     ready = false;

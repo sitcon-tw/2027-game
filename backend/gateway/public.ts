@@ -1,4 +1,5 @@
 import { request as httpRequest, STATUS_CODES } from 'node:http';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Agent, IncomingMessage, OutgoingHttpHeaders } from 'node:http';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { PublicConfig } from './config.ts';
@@ -63,7 +64,8 @@ export function requestWorker(agent: Agent, port: number, method: string, path: 
   return promise;
 }
 
-export function createPublicServer(config: PublicConfig, { workerPort, agent, available }: { workerPort: number; agent: Agent; available(): boolean }) {
+export function createPublicServer(config: PublicConfig, { workerPort, agent, available, adminCredential }: { workerPort: number; agent: Agent; available(): boolean; adminCredential?: string }) {
+  const expectedAdmin = adminCredential === undefined ? undefined : createHash('sha256').update(adminCredential).digest();
   const hosts = new Set(['localhost', loopback]);
   const origins = new Set([
     `http://localhost:${config.dashboardPort}`, `http://${loopback}:${config.dashboardPort}`,
@@ -132,6 +134,14 @@ export function createPublicServer(config: PublicConfig, { workerPort, agent, av
       : player?.[1] === 'actions' || player?.[1] === 'transfer-code' || session;
     const forward = playerRequest || (method === 'GET'
       ? path === '/api/health' || path === '/api/admin/state' : path === '/api/admin/actions');
+    if (forward && path.startsWith('/api/admin/') && expectedAdmin) {
+      const values = raw.headersDistinct.authorization;
+      const credential = values?.length === 1 ? /^Basic ([A-Za-z0-9+/]+=*)$/i.exec(values[0])?.[1] : undefined;
+      if (!credential || !timingSafeEqual(expectedAdmin, createHash('sha256').update(credential).digest())) {
+        return reply.header('www-authenticate', 'Basic realm="SITCON Game Admin", charset="UTF-8"')
+          .code(401).type(jsonType).send({ error: { code: 'admin_auth_required' } });
+      }
+    }
     let body;
     if (method === 'POST') {
       try {

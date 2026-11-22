@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { routes } from './app/routes.js';
 import { fileURLToPath } from 'node:url';
@@ -80,9 +81,13 @@ export async function createDashboardRenderer({ hostname = '127.0.0.1', port } =
   return app;
 }
 
-export function createDashboardServer({ backendUrl = 'http://127.0.0.1:8787', publicOrigin, render } = {}) {
+export function createDashboardServer({ backendUrl = 'http://127.0.0.1:8787', publicOrigin, adminCredential, render } = {}) {
   const backend = configuredOrigin(backendUrl, 'BACKEND_URL', ['http:', 'https:']);
   const publicUrl = publicOrigin === undefined ? undefined : configuredOrigin(publicOrigin, 'PUBLIC_ORIGIN', ['https:']);
+  const expectedAdmin = adminCredential && createHash('sha256').update(adminCredential).digest();
+  if (expectedAdmin && backend.protocol !== 'https:' && !['127.0.0.1', 'localhost', '[::1]'].includes(backend.hostname)) {
+    throw new Error('Admin credentials require an HTTPS or loopback backend URL');
+  }
   const cookieName = publicUrl ? '__Host-sitcon-csrf' : 'sitcon-csrf';
   // Next attaches a WebSocket listener on its first request; production has no upgrades.
   return http.createServer({ shouldUpgradeCallback: () => false }, async (request, response) => {
@@ -107,6 +112,14 @@ export function createDashboardServer({ backendUrl = 'http://127.0.0.1:8787', pu
       return json(response, 403, 'invalid_origin', '拒絕未設定的前端來源。');
     }
     const path = request.url;
+    if (expectedAdmin && !(request.method === 'GET' && path === '/api/health')) {
+      const values = request.headersDistinct.authorization;
+      const credential = values?.length === 1 ? /^Basic ([A-Za-z0-9+/]+=*)$/i.exec(values[0])?.[1] : undefined;
+      if (!credential || !timingSafeEqual(expectedAdmin, createHash('sha256').update(credential).digest())) {
+        response.setHeader('www-authenticate', 'Basic realm="SITCON Game Admin", charset="UTF-8"');
+        return json(response, 401, 'admin_auth_required', '請登入管理後台。');
+      }
+    }
     if (path === '/api/csrf') {
       if (request.method !== 'GET') {
         response.setHeader('allow', 'GET');
@@ -143,8 +156,9 @@ export function createDashboardServer({ backendUrl = 'http://127.0.0.1:8787', pu
           }
           chunks.push(chunk);
         }
-        // Only configured upstream + fixed paths; preserve validated browser Origin, never proxy credentials or CSRF.
+        // Forward credentials only to the configured upstream, on admin routes.
         const headers = origin === undefined ? {} : { origin };
+        if (expectedAdmin && path.startsWith('/api/admin/')) headers.authorization = `Basic ${adminCredential}`;
         if (method === 'POST') headers['content-type'] = 'application/json';
         const upstream = await fetch(new URL(path, backend), {
           method,
@@ -211,8 +225,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const backendUrl = options.get('--backend-url') ?? process.env.BACKEND_URL ?? 'http://127.0.0.1:8787';
   const publicOrigin = options.get('--public-origin') ?? process.env.PUBLIC_ORIGIN;
   const hostname = publicOrigin === undefined ? '127.0.0.1' : '0.0.0.0';
+  const { ADMIN_USERNAME: username, ADMIN_PASSWORD_FILE: passwordFile } = process.env;
+  let adminCredential;
+  if (username !== undefined || passwordFile !== undefined || publicOrigin) {
+    if (!username || /[:\r\n]/.test(username) || !passwordFile) throw new Error('Admin credentials must be configured');
+    const password = (await readFile(passwordFile, 'utf8')).trimEnd();
+    if (password.length < 16) throw new Error('Admin password must contain at least 16 characters');
+    adminCredential = Buffer.from(`${username}:${password}`).toString('base64');
+  }
   let render;
-  const server = createDashboardServer({ backendUrl, publicOrigin, render: (request, response) => render(request, response) });
+  const server = createDashboardServer({ backendUrl, publicOrigin, adminCredential, render: (request, response) => render(request, response) });
   const app = await createDashboardRenderer({ hostname, port });
   render = app.getRequestHandler();
   server.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
