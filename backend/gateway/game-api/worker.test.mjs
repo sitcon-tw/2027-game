@@ -101,6 +101,55 @@ test('device transfer is a single claim with a same-device receipt after expiry'
   for (const secret of [original.token, token, code.split('.')[1]]) assert.ok(!api.document.includes(secret));
 });
 
+test('an admin binding resolves a custom station immediately for an existing player', async t => {
+  const api = await fixture(t);
+  api.success(await api.admin('phase', { phase: 'active' }));
+  const player = await api.enroll();
+  const badge = '04A70000000001';
+  api.success(await api.action(player, 'bindBadge', { uid: badge }));
+  api.success(await api.action(player, 'saveProfile', { tags: ['AI', 'Vim派', '夜貓族'], contact: '' }));
+  const station = { stationId: 'station-custom', name: 'Custom', packs: 2, limit: 1, remaining: 10 };
+  api.success(await api.admin('station', { ...station, open: false }));
+  const bind = uid => api.admin('bindStationTag', { stationId: station.stationId, uid });
+  for (const uid of [badge, '04E00000000001']) {
+    assert.equal((await bind(uid)).payload.error.message.code, 'uidReserved');
+  }
+  const uid = '04A70000000002';
+  const admin = api.success(await bind('04:a7:00:00:00:00:02'));
+  assert.deepEqual(admin.stations.find(s => s.id === station.stationId).boundUids, [uid]);
+  assert.equal((await bind(uid)).payload.error.message.code, 'uidReserved');
+  const scan = async scanId => api.success(await api.action(player, 'scan', { uid, scanId }));
+  assert.equal((await scan('closed')).result.message.code, 'stationClosed');
+  api.success(await api.admin('station', { ...station, open: true }));
+  const before = await api.state(player);
+  const after = await scan('open');
+  assert.equal(after.result.message.code, 'stationPacks');
+  assert.equal(after.state.packs, before.packs + 2);
+  assert.equal((await scan('again')).result.message.code, 'stationLimit');
+});
+
+test('physical and fixture checkpoint tags share one reward and appear in admin statistics', async t => {
+  const api = await fixture(t);
+  api.success(await api.admin('phase', { phase: 'active' }));
+  const player = await api.enroll();
+  api.success(await api.action(player, 'bindBadge', { uid: '04A70000000001' }));
+  api.success(await api.action(player, 'saveProfile', { tags: ['AI', 'Vim派', '夜貓族'], contact: '' }));
+  const uid = '04A70000000003';
+  const admin = api.success(await api.admin('bindCheckpointTag', { checkpointNumber: 1, uid }));
+  assert.deepEqual(admin.checkpoints[0].boundUids, [uid]);
+  const conflict = await api.admin('bindStationTag', { stationId: 'station-1', uid });
+  assert.equal(conflict.payload.error.message.code, 'uidReserved');
+  const scan = async (tag, scanId) => api.success(await api.action(player, 'scan', { uid: tag, scanId }));
+  const first = await scan(uid, 'physical');
+  assert.equal(first.result.kind, 'checkpoint');
+  assert.equal(first.result.message.code, 'checkpointFound');
+  assert.equal(first.result.message.args.number, 1);
+  assert.equal((await scan('04C00000000001', 'fixture')).result.message.code, 'checkpointRepeat');
+  const summary = api.success(await api.request('/api/admin/state')).checkpoints[0];
+  assert.equal(summary.scans, 2);
+  assert.equal(summary.collectedPlayers, 1);
+});
+
 test('a failed commit restores both players and the room before a locked round is retried', async t => {
   const api = await fixture(t);
   api.success(await api.admin('phase', { phase: 'active' }));

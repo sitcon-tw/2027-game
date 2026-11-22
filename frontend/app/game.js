@@ -45,7 +45,7 @@ export function time(value) {
   return Number.isNaN(date.valueOf()) ? String(value) : timeFormat.format(date);
 }
 
-const numericFields = new Set(['amount', 'expected', 'packs', 'limit', 'remaining', ...parameters.map(([name]) => name)]);
+const numericFields = new Set(['amount', 'expected', 'packs', 'limit', 'remaining', 'checkpointNumber', ...parameters.map(([name]) => name)]);
 
 export function actionPayload(action, form) {
   const args = {};

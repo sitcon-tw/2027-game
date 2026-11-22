@@ -38,6 +38,8 @@ const auditedAdminArgs: Readonly<Record<string, readonly string[]>> = {
   boothComplete: ['playerId', 'boothId'],
   role: ['playerId', 'role', 'boothId'],
   station: ['stationId', 'name', 'packs', 'limit', 'remaining', 'open'],
+  bindStationTag: ['stationId', 'uid'],
+  bindCheckpointTag: ['checkpointNumber', 'uid'],
 };
 const zeroAllowed = { missionCoins: true, battleWinCoins: true, battleDrawCoins: true };
 const demoBadgeUids = new Set(Array.from({ length: 18 }, (_, i) => GameEngine.playerUid(i + 1)));
@@ -292,16 +294,21 @@ export class GameApi {
         if (Object.values(data.players).some(p => p.badge === uid)) throw new GameStateError(new GameMessage('uidReserved'));
         const stationId = stringField(a, 'stationId', 48);
         await core.bindStation(uid, stationId);
-        data.bindings[uid] = stationId;
-        this.#store.changed();
-        const conflicts = new Set(data.bindingConflicts);
-        for (const player of this.#players.values()) player.useGlobalBindings(data.bindings, { conflicts });
+        this.#saveTagBinding(uid, stationId);
         break;
       }
       default:
         throw playerActionForbidden;
     }
     return null;
+  }
+
+  #saveTagBinding(uid: string, target: string) {
+    const data = this.#store.data;
+    data.bindings[uid] = target;
+    this.#store.changed();
+    const conflicts = new Set(data.bindingConflicts);
+    for (const player of this.#players.values()) player.useGlobalBindings(data.bindings, { conflicts });
   }
 
   async #scan(actorId: string, actor: GameEngine, uid: string, scanId: string, mode: ScannerMode): Promise<ScanResult> {
@@ -441,6 +448,27 @@ export class GameApi {
         const boothId = optionalString(a, 'boothId', 80);
         const [, core] = await this.#target(a);
         await core.configureRole(role, { boothId });
+        break;
+      }
+      case 'bindCheckpointTag':
+      case 'bindStationTag': {
+        let target: string;
+        if (action === 'bindCheckpointTag') {
+          target = `checkpoint-${integerField(a, 'checkpointNumber', 1, 42)}`;
+        } else {
+          target = stringField(a, 'stationId', 48);
+          const demo = await this.#player('demo');
+          if (!demo.stations.some(station => station.id === target)) {
+            throw new GameArgumentError(new GameMessage('stationNotFound'));
+          }
+        }
+        const uid = GameEngine.normalizeUid(stringField(a, 'uid', 100));
+        if (uid === GameEngine.selfUid || demoBadgeUids.has(uid) || nonBadgeUids.has(uid) ||
+            data.bindingConflicts.includes(uid) || Object.hasOwn(data.bindings, uid) ||
+            Object.values(data.players).some(player => player.badge === uid)) {
+          throw new GameStateError(new GameMessage('uidReserved'));
+        }
+        this.#saveTagBinding(uid, target);
         break;
       }
       case 'station': {

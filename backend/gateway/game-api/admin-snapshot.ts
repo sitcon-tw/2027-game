@@ -1,4 +1,5 @@
 import { GameEngine, boothToWire, stationToWire } from '../game/engine.ts';
+import { checkpointNumberForTarget } from '../game/fixtures.ts';
 import { isBefore, parseDate, stamp } from '../game/time.ts';
 import type { Store } from './store.ts';
 
@@ -8,6 +9,17 @@ const checkpointNumbers = new Map(Array.from({ length: 42 }, (_, i) => [GameEngi
 export function adminSnapshot(store: Store, players: [string, GameEngine][], demo: GameEngine, clock: () => Date) {
   const checkpoints = demo.checkpoints.map(({ number, area }) =>
     ({ number, area, scans: 0, collectedPlayers: 0, last: null as Date | null }));
+  const checkpointByTag = new Map(checkpointNumbers);
+  const uidsByTarget = new Map<string, string[]>();
+  const conflicts = new Set(store.data.bindingConflicts);
+  for (const [uid, target] of Object.entries(store.data.bindings)) {
+    if (conflicts.has(uid)) continue;
+    const number = checkpointNumberForTarget(target);
+    if (number !== undefined && !checkpointByTag.has(uid)) checkpointByTag.set(uid, number);
+    const uids = uidsByTarget.get(target);
+    if (uids) uids.push(uid);
+    else uidsByTarget.set(target, [uid]);
+  }
   const recentLedger: { playerId: string; at: string; reason: string; detail: string; coins: number }[] = [];
   const metrics = {
     players: players.length, checkedIn: 0, coins: 0, points: 0, packs: 0, handTotal: 0, planets: 0,
@@ -18,7 +30,7 @@ export function adminSnapshot(store: Store, players: [string, GameEngine][], dem
     for (const entry of state.ledger) {
       if (entry.reason !== 'scan.checkpoint' && entry.reason !== 'scan.checkpoint.repeat') continue;
       const uid = uidPattern.exec(entry.detail)?.[1];
-      const number = uid === undefined ? undefined : checkpointNumbers.get(uid);
+      const number = uid === undefined ? undefined : checkpointByTag.get(uid);
       if (number !== undefined) {
         const checkpoint = checkpoints[number - 1];
         const at = parseDate(entry.at);
@@ -34,7 +46,7 @@ export function adminSnapshot(store: Store, players: [string, GameEngine][], dem
       }
     }
     for (const scan of Object.values(state.scans)) {
-      const number = checkpointNumbers.get(scan.source);
+      const number = checkpointByTag.get(scan.source);
       if (number !== undefined) checkpoints[number - 1].scans++;
       metrics.scans++;
     }
@@ -86,12 +98,14 @@ export function adminSnapshot(store: Store, players: [string, GameEngine][], dem
     // Stock is independent per test account, not shared event inventory.
     stations: demo.stations.map(station => ({
       ...stationToWire(station),
+      boundUids: uidsByTarget.get(station.id) ?? [],
       remainingByPlayer: Object.fromEntries(stationsByPlayer.map(([id, stations]) =>
         [id, stations.find(candidate => candidate.id === station.id)!.remaining])),
     })),
     booths: demo.booths.map(boothToWire),
     checkpoints: checkpoints.map(({ number, area, scans, collectedPlayers, last }) => ({
       number, area, scans, collected: collectedPlayers > 0, collectedPlayers,
+      boundUids: uidsByTarget.get(`checkpoint-${number}`) ?? [],
       lastScan: last == null ? null : stamp(last),
     })),
     audit: store.data.audit.slice(-200).reverse(),

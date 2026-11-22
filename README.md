@@ -22,6 +22,10 @@ npm run dev
 
 按 `Ctrl+C` 停止。資料保存在 `.sitcon-dev/`，下次啟動會沿用。所有服務只接受本機連線。
 
+## 綁定 NTAG
+
+在管理後台的「發卡站」或「打卡小石」，選擇目標並輸入 7 位元組 NTAG UID（14 個十六進位字元）。已被使用或保留的 UID 不會被覆蓋。綁定後可在表格確認 UID；發卡站還需要開放領取才會發放卡包。
+
 ## 常用指令
 
 - `backend/gateway/`：`npm run typecheck`、`npm test`

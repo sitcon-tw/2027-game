@@ -3,6 +3,8 @@ const actionErrors = new Map([
   ['badgeTaken', '此 UID 已綁定其他玩家。'],
   ['notBadge', '此 UID 已保留給活動標籤，無法綁定為名牌。'],
   ['invalidUid', '請輸入有效的 7 位元組 NFC UID。'],
+  ['uidReserved', '此 UID 已被使用或保留，請改用未綁定的 NTAG。'],
+  ['stationNotFound', '找不到發卡站，請重新整理後再試。'],
   ['invalidInventoryAdjustment', '請選擇有效的資源與數量。'],
   ['inventoryChanged', '資源數量已變更，請更新資料後再試。'],
   ['inventoryInsufficient', '持有數量不足，無法收回。'],

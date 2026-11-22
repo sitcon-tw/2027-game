@@ -390,6 +390,15 @@ export function Players() {
   );
 }
 
+function TagUidField({ id }) {
+  return (
+    <Field id={id} label="NTAG UID（14 個十六進位字元）">
+      <input id={id} name="uid" required maxLength={26}
+        pattern={'(?:[0-9A-Fa-f]{2}[ :\\-]?){6}[0-9A-Fa-f]{2}'} {...identifierProps} />
+    </Field>
+  );
+}
+
 export function Stations() {
   const { state, writable, announce } = useDashboard();
   const [draft, setDraft] = useDraft('station', defaultStation);
@@ -405,8 +414,8 @@ export function Stations() {
     <div className="view">
       <Card title="發卡站狀態">
         <DataTable caption="發卡站庫存與領取規則" empty={state ? '尚無發卡站。' : unloaded}
-          headings={['發卡站', 'ID', '每次卡包', '每人上限', '庫存', '狀態', '操作']}
-          rows={(state?.stations ?? none).map((station) => [station.id, station.name, station.id, number(station.packs), number(station.limit), number(station.remaining),
+          headings={['發卡站', 'ID', 'NTAG UID', '每次卡包', '每人上限', '庫存', '狀態', '操作']}
+          rows={(state?.stations ?? none).map((station) => [station.id, station.name, station.id, station.boundUids?.join('、') || '—', number(station.packs), number(station.limit), number(station.remaining),
             <span className={`chip ${station.open ? 'positive' : 'secondary'}`}>{station.open ? '開放' : '關閉'}</span>,
             <button className="button tonal compact" type="button" disabled={!writable} aria-label={`編輯發卡站 ${station.id}`} onClick={() => edit(station)}>編輯</button>])} />
       </Card>
@@ -430,6 +439,17 @@ export function Stations() {
           <div className="check-field"><input id="station-open" name="open" type="checkbox" checked={draft.open} onChange={(event) => patch('open', event.target.checked)} /><label htmlFor="station-open">開放領取</label></div>
         </div>
       </ActionForm>
+      <ActionForm id="station-tag-form" title="綁定發卡站 NTAG" action="bindStationTag" submitLabel="綁定 NTAG">
+        <div className="form-grid station-fields">
+          <Field id="station-tag-target" label="發卡站（必填）">
+            <select id="station-tag-target" name="stationId" defaultValue="" required>
+              <option value="" disabled>選擇發卡站</option>
+              {(state?.stations ?? none).map(({ id, name }) => <option key={id} value={id}>{name}（{id}）</option>)}
+            </select>
+          </Field>
+          <TagUidField id="station-tag-uid" />
+        </div>
+      </ActionForm>
     </div>
   );
 }
@@ -437,12 +457,25 @@ export function Stations() {
 export function Checkpoints() {
   const { state } = useDashboard();
   return (
-    <Card title="掃描狀態">
-      <DataTable caption="打卡小石實際掃描狀態" empty={state ? '尚無打卡資料。' : unloaded}
-        headings={['編號', '區域', '掃描次數', '收集數', '最近掃描']}
-        rows={(state?.checkpoints ?? none).map((checkpoint) => [checkpoint.number, checkpoint.number, checkpoint.area, number(checkpoint.scans),
-          typeof checkpoint.collected === 'boolean' ? (checkpoint.collected ? '已收集' : '未收集') : number(checkpoint.collected), time(checkpoint.lastScan)])} />
-    </Card>
+    <div className="view">
+      <Card title="掃描狀態">
+        <DataTable caption="打卡小石實際掃描狀態" empty={state ? '尚無打卡資料。' : unloaded}
+          headings={['編號', '區域', 'NTAG UID', '掃描次數', '收集數', '最近掃描']}
+          rows={(state?.checkpoints ?? none).map((checkpoint) => [checkpoint.number, checkpoint.number, checkpoint.area, checkpoint.boundUids?.join('、') || '—', number(checkpoint.scans),
+            typeof checkpoint.collected === 'boolean' ? (checkpoint.collected ? '已收集' : '未收集') : number(checkpoint.collected), time(checkpoint.lastScan)])} />
+      </Card>
+      <ActionForm id="checkpoint-tag-form" title="綁定打卡小石 NTAG" action="bindCheckpointTag" submitLabel="綁定 NTAG">
+        <div className="form-grid station-fields">
+          <Field id="checkpoint-tag-target" label="打卡小石（必填）">
+            <select id="checkpoint-tag-target" name="checkpointNumber" defaultValue="" required>
+              <option value="" disabled>選擇打卡小石</option>
+              {(state?.checkpoints ?? none).map(({ number, area }) => <option key={number} value={number}>{number} · {area}</option>)}
+            </select>
+          </Field>
+          <TagUidField id="checkpoint-tag-uid" />
+        </div>
+      </ActionForm>
+    </div>
   );
 }
 

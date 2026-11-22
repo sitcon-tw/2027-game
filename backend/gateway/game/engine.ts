@@ -7,6 +7,7 @@ import {
 import type { GameService } from './service.ts';
 import {
   attendeeByUid, boothByUid, boothNames, boothUid, checkpointAreaByIndex, checkpointByUid, checkpointUid,
+  checkpointNumberForTarget,
   fixturePlayer, fixtureStations, operatorAttendees, playerUid, selfUid, stationByUid, stationUid, unknownUid,
 } from './fixtures.ts';
 import { addSeconds, isBefore, optionalDate, parseDate, stamp } from './time.ts';
@@ -508,9 +509,9 @@ export class GameEngine implements GameService {
     });
   }
 
-  #stationForUid(uid: string) {
+  #boundTagTarget(uid: string) {
     if (this.#bindingConflicts.has(uid)) throw new GameStateError(new GameMessage('ambiguousTag'));
-    return stationByUid.get(uid) ?? (this.#globalBindings ?? this.#s.bindings)[uid] ?? null;
+    return (this.#globalBindings ?? this.#s.bindings)[uid];
   }
 
   #scanOperator(uid: string, mode: ScannerMode) {
@@ -529,11 +530,13 @@ export class GameEngine implements GameService {
         { uid, player, targetPlayerId: player.id, booth, repeated });
     }
     if (mode === ScannerMode.booth) throw new GameStateError(new GameMessage('attendeeBadgeRequired'));
-    const stationId = this.#stationForUid(uid);
+    const target = this.#boundTagTarget(uid);
+    const checkpoint = checkpointByUid.has(uid) || checkpointNumberForTarget(target) !== undefined;
+    const stationId = stationByUid.get(uid) ?? (checkpoint ? undefined : target);
     if (stationId != null) {
       return new ScanResult('staffStation', new GameMessage('staffStationInfo'), { uid, station: this.#findStation(stationId) });
     }
-    const known = checkpointByUid.has(uid) || boothByUid.has(uid);
+    const known = checkpoint || boothByUid.has(uid);
     return new ScanResult(known ? 'operatorTag' : 'bindStation', new GameMessage(known ? 'operatorTagInfo' : 'scan.bindStation'), { uid });
   }
 
@@ -576,7 +579,8 @@ export class GameEngine implements GameService {
       this.#log('scan.player', `scanId=${scanId} UID=${uid} ${player.name}`);
       return new ScanResult('player', new GameMessage('scan.player'), { uid, player });
     }
-    const number = checkpointByUid.get(uid);
+    const target = this.#boundTagTarget(uid);
+    const number = checkpointByUid.get(uid) ?? checkpointNumberForTarget(target);
     if (number != null) {
       this.#active();
       if (Object.hasOwn(this.#s.checkpoints, number)) {
@@ -597,7 +601,7 @@ export class GameEngine implements GameService {
       this.#log('scan.booth', `scanId=${scanId} UID=${uid} ${id}，只顯示介紹；任務由攤商回掃控制確認`);
       return new ScanResult('booth', new GameMessage('scan.booth'), { uid, booth: this.booths[boothNumber - 1] });
     }
-    const stationId = this.#stationForUid(uid);
+    const stationId = stationByUid.get(uid) ?? target;
     if (stationId != null) {
       this.#active();
       const station = this.#findStation(stationId);

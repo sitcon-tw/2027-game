@@ -29,6 +29,10 @@ const checkpointAreas = [
 ] as const;
 export const checkpointAreaByIndex = Object.freeze(checkpointAreas.flatMap(([area, count]) => Array<string>(count).fill(area)));
 export const checkpointByUid: ReadonlyMap<string, number> = new Map(checkpointAreaByIndex.map((_, i) => [checkpointUid(i + 1), i + 1]));
+export function checkpointNumberForTarget(target: string | null | undefined) {
+  const match = target?.match(/^checkpoint-([1-9]|[1-3][0-9]|4[0-2])$/);
+  return match ? Number(match[1]) : undefined;
+}
 export const boothNames = ['SITCON 社群交流（模擬）', '開源 Demo（模擬）', '活動組任務（模擬）'] as const;
 export const boothByUid: ReadonlyMap<string, number> = new Map(boothNames.map((_, i) => [boothUid(i + 1), i + 1]));
 export const fixtureStations = Object.freeze({
